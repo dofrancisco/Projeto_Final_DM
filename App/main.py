@@ -19,20 +19,24 @@ sys.path.append(parent_dir)
 
 from auxiliar import MyModel
 
-
 class PredictorApp(App):
     def build(self):
-        self.model = load('final_model.pkl')
+        self.model_path = 'svc_model.pkl'  # Default model path
+        self.model = load(self.model_path)  # Load the default model
         layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
-        self.label = Label(text='Select an Excel file to predict', size_hint=(1, .1))
-        layout.add_widget(self.label)
+        self.file_label = Label(text='Select an Excel file to predict', size_hint=(1, .1))
+        layout.add_widget(self.file_label)
+
+        # Label for displaying the currently loaded model
+        self.model_label = Label(text=f'Loaded model: {os.path.basename(self.model_path)}', size_hint=(1, .1))
+        layout.add_widget(self.model_label)
 
         open_excel_button = Button(text='Open Excel File', size_hint=(1, .1))
         open_excel_button.bind(on_press=self.open_filechooser)
         layout.add_widget(open_excel_button)
         
-        open_model_button = Button(text='Load Model', size_hint=(1, .1))
+        open_model_button = Button(text='Load Different Model', size_hint=(1, .1))
         open_model_button.bind(on_press=self.open_model_chooser)
         layout.add_widget(open_model_button)
 
@@ -48,44 +52,39 @@ class PredictorApp(App):
         content = FileChooserListView(filters=[file_type], path=user_path)
         content.bind(on_submit=self.select_file)
         
-        self.popup = Popup(title=title, content=content,
-                           size_hint=(0.9, 0.9))
+        self.popup = Popup(title=title, content=content, size_hint=(0.9, 0.9))
         self.popup.open()
 
     def open_model_chooser(self, instance):
-        # Use a different title and file_type for the model file chooser
-        self.open_filechooser(instance, file_type='*.pkl', title='Load a Prediction Model')
+        self.open_filechooser(instance, file_type='*.pkl', title='Load a Different Prediction Model')
 
     def select_file(self, instance, selection, touch):
         if selection:
             self.filepath = selection[0]
             if self.filepath.endswith('.xlsx'):
-                self.label.text = f'Selected Excel file: {os.path.basename(self.filepath)}'
+                self.file_label.text = f'Selected Excel file: {os.path.basename(self.filepath)}'
                 self.predict_button.disabled = False
             elif self.filepath.endswith('.pkl'):
-                self.label.text = f'Loaded model: {os.path.basename(self.filepath)}'
                 self.model = load(self.filepath)  # Load the new model
+                self.model_path = self.filepath
+                self.model_label.text = f'Loaded model: {os.path.basename(self.model_path)}'  # Update the model label
             self.popup.dismiss()
 
     def predict(self, instance):
         data = pd.read_excel(self.filepath)
-        data = data[[col for col in data.columns if col not in ['nasogastric_reflux_ph', 'abdomo_protein', 'total_protein',
-                                                                'abdomo_appearance']]]
+        data = data[[col for col in data.columns if col not in ['nasogastric_reflux_ph', 'abdomo_protein', 'total_protein', 'abdomo_appearance']]]
         predictions = self.model.predict(data)
         predictions_text = 'Predictions: ' + ', '.join(map(str, predictions))
         
-        if len(predictions_text) > 100:  # Se o texto for muito longo para a label
-            # Use um TextInput dentro de um ScrollView
+        if len(predictions_text) > 100:
             scroll_view = ScrollView(size_hint=(1, None), size=(Window.width, Window.height * 0.3))
             text_input = TextInput(text=predictions_text, readonly=True, multiline=True)
             scroll_view.add_widget(text_input)
             
-            self.popup = Popup(title='Predictions', content=scroll_view,
-                               size_hint=(0.9, 0.5))
+            self.popup = Popup(title='Predictions', content=scroll_view, size_hint=(0.9, 0.5))
             self.popup.open()
         else:
-            self.label.text = predictions_text
-
+            self.file_label.text = predictions_text
 
 if __name__ == '__main__':
     PredictorApp().run()
